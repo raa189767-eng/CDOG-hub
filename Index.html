@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>C-Dog Hub 🐾</title>
+<style>
+  body {
+    background: #0b0b0b;
+    color: #00ff9d;
+    font-family: monospace;
+    padding: 20px;
+    max-width: 900px;
+    margin: auto;
+  }
+  h1 {
+    color: #00ffd5;
+    text-align: center;
+  }
+  input {
+    width: 100%;
+    padding: 6px;
+    background: #000;
+    color: #0f0;
+    border: 1px solid #0f0;
+    font-family: monospace;
+    margin-bottom: 15px;
+  }
+  .lib {
+    border-top: 1px dashed #00ff99;
+    margin-top: 15px;
+    padding-top: 10px;
+  }
+  a {
+    color: #00ccff;
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+  .info {
+    color: #0ff;
+  }
+  button {
+    background: #001100;
+    color: #0f0;
+    border: 1px solid #0f0;
+    padding: 5px 10px;
+    margin-top: 5px;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #002200;
+  }
+</style>
+</head>
+<body>
+  <h1>C-Dog Hub 🐶</h1>
+  <p>Hub de bibliotecas C-Dog — feito pela comunidade, sem servidor central.</p>
+
+  <div id="userArea"></div>
+
+  <input id="search" placeholder="🔍 Buscar biblioteca..." style="display:none;">
+  <div id="list">Insira seu usuário GitHub para carregar as bibliotecas.</div>
+
+  <script>
+    const listDiv = document.getElementById("list");
+    const searchBox = document.getElementById("search");
+    const userArea = document.getElementById("userArea");
+    const repoName = "cdog-hub";
+    const libsFolder = "libs";
+
+    // Pede ou recupera usuário salvo
+    function askUser() {
+      let user = localStorage.getItem("cdog_user");
+      if (!user) {
+        userArea.innerHTML = `
+          <input id="userInput" placeholder="👤 Digite seu usuário GitHub...">
+          <button onclick="saveUser()">Salvar</button>
+        `;
+      } else {
+        userArea.innerHTML = `
+          <b>Usuário:</b> ${user} 
+          <button onclick="changeUser()">Trocar</button>
+        `;
+        loadLibs(user);
+      }
+    }
+
+    function saveUser() {
+      const user = document.getElementById("userInput").value.trim();
+      if (!user) return alert("Digite um nome de usuário válido.");
+      localStorage.setItem("cdog_user", user);
+      askUser();
+    }
+
+    function changeUser() {
+      localStorage.removeItem("cdog_user");
+      location.reload();
+    }
+
+    async function loadLibs(user) {
+      searchBox.style.display = "block";
+      listDiv.innerHTML = "<em>Carregando bibliotecas...</em>";
+      try {
+        const res = await fetch(`https://api.github.com/repos/${user}/${repoName}/contents/${libsFolder}`);
+        if (!res.ok) throw new Error("Falha ao carregar lista.");
+        const items = await res.json();
+        renderList(items);
+        searchBox.addEventListener("input", () => renderList(items));
+      } catch (e) {
+        listDiv.innerHTML = "<p style='color:red;'>Erro ao buscar libs. Verifique se o repositório existe.</p>";
+      }
+    }
+
+    function renderList(items) {
+      const query = searchBox.value.toLowerCase();
+      listDiv.innerHTML = "";
+      const libs = items.filter(i => i.type === "dir" && i.name.toLowerCase().includes(query));
+
+      if (libs.length === 0) {
+        listDiv.innerHTML = "<p>Nenhuma biblioteca encontrada.</p>";
+        return;
+      }
+
+      libs.forEach(lib => {
+        const libDiv = document.createElement("div");
+        libDiv.className = "lib";
+        libDiv.innerHTML = `
+          📦 <b>${lib.name}</b><br>
+          <span class="info">
+            <a href="${lib.html_url}" target="_blank">🌐 Ver no GitHub</a> |
+            <a href="#" onclick="showFiles('${lib.name}')">📂 Ver arquivos</a>
+          </span>
+          <div id="files-${lib.name}" style="margin-top:5px;"></div>
+        `;
+        listDiv.appendChild(libDiv);
+      });
+    }
+
+    async function showFiles(libName) {
+      const user = localStorage.getItem("cdog_user");
+      const target = document.getElementById(`files-${libName}`);
+      if (target.innerHTML.trim() !== "") {
+        target.innerHTML = "";
+        return;
+      }
+      target.innerHTML = "<em>Carregando arquivos...</em>";
+      const res = await fetch(`https://api.github.com/repos/${user}/${repoName}/contents/${libsFolder}/${libName}`);
+      const files = await res.json();
+      target.innerHTML = "<ul>" + files.map(f =>
+        `<li><a href="${f.download_url}" target="_blank">${f.name}</a></li>`
+      ).join("") + "</ul>";
+    }
+
+    askUser();
+  </script>
+</body>
+</html>
